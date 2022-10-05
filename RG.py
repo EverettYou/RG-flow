@@ -64,7 +64,7 @@ class Dynamic(torch.nn.Module):
         Example:
             t = torch.tensor(0.)
             x = torch.randn(4, 3)
-            model = DynamicModule(torch.nn.Linear(3, 3), 5)
+            model = Dynamic(torch.nn.Linear(3, 3), 5)
             model(t, x)
         
         Parameters:
@@ -107,15 +107,15 @@ class Dynamic(torch.nn.Module):
             return self.func_module(params, x)
 
 class ODEFunc(torch.nn.Module):
-    ''' ODE function that defines dx/dt = f(t,x).
-        Other related ODEs:
-            Jacobian: dlogJ/dt = div f(t, x)
+    ''' Given the function f(t,x) that defines the ODE dx/dt = f(t,x),
+        ODEFunc computes the other related ODEs:
+            Jacobian: dlogJ/dt = div f(t,x)
             kinetic energy: dEk/dt = |f(t,x)|^2
             gradient energy: dEg/dt = |grad f(t,x)|^2
         [see neural ODE arXiv:1806.07366, 1810.01367, 2002.02798]
 
         Parameters:
-            f :: DynamicModule - dynamic module that models f(t,x)
+            f :: Dynamic - dynamic module that models f(t,x)
     '''
     div = None
     e = None
@@ -129,7 +129,7 @@ class ODEFunc(torch.nn.Module):
             t: torch scalar - time parameter
             x or (x, logJ) or (x, logJ, Ek, Eg): 
                 x :: torch.Tensor (N, dim, ...)
-                logJ :: torch.Tensor (N,) - log Jacobian
+                logJ :: torch.Tensor (N,) - accumulated log Jacobian
                 Ek :: torch.Tensor (N,) - kinetic energy regulator
                 Eg :: torch.Tensor (N,) - gradient energy regulator
 
@@ -214,13 +214,21 @@ class ODEFunc(torch.nn.Module):
 
 class ODEBijector(torch.nn.Module):
     ''' ODEBijector realizes a bijective map by solving the ODE dx/dt = f(t,x).
+        ODE solver is implemented by calling torchdiffeq.odeint_adjoint as odeint.
+        
+        Example:
+        ode = ODEBijector(Dynamic(torch.nn.Linear(2,2)))
+        x0 = torch.randn(1,2)
+        x1, logJ01, Ek01, Eg01 = ode(x0, 0., 1., mode='jf_reg', div='exact')
+        x0_, logJ10, Ek10, Eg10 = ode(x1, 1., 0., mode='jf_reg', div='exact')
+        (x0, x1, x0_), (logJ01, logJ10), (Ek01, Ek10), (Eg01, Eg10)
 
         Parameters:
-            f :: DynamicModule - dynamic module that models f(t,x)
+            f :: Dynamic - dynamic module that models f(t,x)
     '''
     def __init__(self, f):
         super().__init__()
-        self.ode = ODEFunc(f)
+        self.odefunc = ODEFunc(f)
     
     def forward(self, x, t0, t1, mode='f', div='approx', **kwargs):
         ''' ODE evolve x from t0 to t1
@@ -238,13 +246,13 @@ class ODEBijector(torch.nn.Module):
                     'exact' : exact method
             Output:
                 y :: torch.Tensor (N, dim, ...) - output tensor
-                logJ :: torch.Tensor (N,) - log Jacobian accumulated
+                logJ :: torch.Tensor (N,) - accumulated log Jacobian (log det dx(t1)/dx(t0))
                 Ek :: torch.Tensor (N,) - accumulated kinetic energy
                 Eg :: torch.Tensor (N,) - accumulated gradient energy
         '''
         ts = torch.tensor([t0, t1]).to(x)
         if mode == 'f':
-            xs = odeint(self.ode, x, ts, **kwargs) # ode integration
+            xs = odeint(self.odefunc, x, ts, **kwargs) # ode integration
             return (xs[-1],)
         else:
             zero = torch.zeros(x.shape[0]).to(x) # initial tensor for logJ, Ek, Eg
@@ -252,12 +260,13 @@ class ODEBijector(torch.nn.Module):
             # 'jf': state = (x,0)
             # 'jf_reg': state = (x,0,0,0)
             state = (x,) + (zero,)*(1 if mode == 'jf' else 3) 
-            self.ode.setup(x, div=div) # setup div method and noise befor odeint
-            state = odeint(self.ode, state, ts, **kwargs) # ode integration
+            self.odefunc.setup(x, div=div) # setup div method and noise befor odeint
+            state = odeint(self.odefunc, state, ts, **kwargs) # ode integration
             return tuple(x[-1] if i < 2 else x[-1]/(t1-t0) for i, x in enumerate(state))
 
 class RGPartition(torch.nn.Module):
-    ''' partition fine-grained features to coarse-grained and residual features
+    ''' RGPartition implements bijective partition of fine-grained features
+        to coarse-grained and residual features.
         
         Parameters:
             in_shape :: torch.Size - data shape of fine-grained features
@@ -313,7 +322,7 @@ class RGPartition(torch.nn.Module):
         return x
 
 class RGLayer(torch.nn.Module):
-    ''' perform one layer of RG transformation
+    ''' perform one layer of RG transformation (bijective)
         
         Parameter:
             in_shape :: torch.Size - data shape of input
@@ -343,7 +352,7 @@ class RGLayer(torch.nn.Module):
                 x :: torch.Tensor (N, dim, *out_shape) - coarse-grained features
                 z :: torch.Tensor (N, dim, *res_shape) - residual (irrelevant) features
                 --- optional ---
-                logJ :: torch.Tensor (N,) - log Jacobian accumulated
+                logJ :: torch.Tensor (N,) - accumulated log Jacobian (log det d(x,z)/dx)
                 Ek :: torch.Tensor (N,) - accumulated kinetic energy
                 Eg :: torch.Tensor (N,) - accumulated gradient energy
         '''
@@ -362,7 +371,7 @@ class RGLayer(torch.nn.Module):
             Output:
                 x :: torch.Tensor (N, dim, *in_shape) - fine-grained features
                 --- optional ---
-                logJ :: torch.Tensor (N,) - log Jacobian accumulated
+                logJ :: torch.Tensor (N,) - accumulated log Jacobian (log det dx/d(x,z))
                 Ek :: torch.Tensor (N,) - accumulated kinetic energy
                 Eg :: torch.Tensor (N,) - accumulated gradient energy
         '''
@@ -371,7 +380,7 @@ class RGLayer(torch.nn.Module):
         return x, *rest
 
 class RGFlow(torch.nn.Module):
-    ''' perform the RG flow
+    ''' perform the RG flow (bijective)
         
         Parameter:
             shape :: torch.Size - data shape
@@ -406,7 +415,7 @@ class RGFlow(torch.nn.Module):
             Output:
                 z :: torch.Tensor (N, dim, *shape) - bulk features
                 --- optional ---
-                logJ :: torch.Tensor (N,) - log Jacobian accumulated
+                logJ :: torch.Tensor (N,) - accumulated accumulated log Jacobian (log det dz/dx)
                 Ek :: torch.Tensor (N,) - accumulated kinetic energy
                 Eg :: torch.Tensor (N,) - accumulated gradient energy
         '''
@@ -432,7 +441,7 @@ class RGFlow(torch.nn.Module):
             Output:
                 x :: torch.Tensor (N, dim, *shape) - boundary features
                 --- optional ---
-                logJ :: torch.Tensor (N,) - log Jacobian accumulated
+                logJ :: torch.Tensor (N,) - accumulated accumulated log Jacobian (log det dx/dz)
                 Ek :: torch.Tensor (N,) - accumulated kinetic energy
                 Eg :: torch.Tensor (N,) - accumulated gradient energy
         '''
