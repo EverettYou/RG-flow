@@ -1,6 +1,6 @@
 import torch
-from functorch import make_functional
-from torchdiffeq import odeint_adjoint as odeint
+from functorch import make_functional # https://pytorch.org/functorch/stable/
+from torchdiffeq import odeint_adjoint as odeint # https://github.com/rtqichen/torchdiffeq
 from math import prod
 
 class CNN(torch.nn.Module):
@@ -59,6 +59,7 @@ class Dynamic(torch.nn.Module):
         Given a base module that computes y = g(x|p) for input x and parameter p,
         this module construct a hypernet h(t) to model the time-dependent parameter,
         and compute y = f(t, x) = g(x|p=h(t))
+        [code adapted from https://github.com/shyamsn97/hyper-nn/blob/main/hypernn/torch/utils.py]
         
         Example:
             t = torch.tensor(0.)
@@ -111,6 +112,7 @@ class ODEFunc(torch.nn.Module):
             Jacobian: dlogJ/dt = div f(t, x)
             kinetic energy: dEk/dt = |f(t,x)|^2
             gradient energy: dEg/dt = |grad f(t,x)|^2
+        [see neural ODE arXiv:1806.07366, 1810.01367, 2002.02798]
 
         Parameters:
             f :: DynamicModule - dynamic module that models f(t,x)
@@ -151,6 +153,7 @@ class ODEFunc(torch.nn.Module):
         else: # state = x
             return self.f(t, state) # call ODE function f
     
+    # Jacobbian forward
     def jf(self, t, state):
         x = state[0] # state = (x, logJ)
         with torch.set_grad_enabled(True):
@@ -161,6 +164,7 @@ class ODEFunc(torch.nn.Module):
             dlogJ, _ = self.div(dx, x, reg=False) # estimate div f, without estimating regulations
         return (dx, dlogJ)
     
+    # Jacobbian forward with regularization [arXiv:2002.02798] 
     def jf_reg(self, t, state):
         x = state[0] # state = (x, logJ, Ek, Eg)
         with torch.set_grad_enabled(True):
@@ -196,7 +200,7 @@ class ODEFunc(torch.nn.Module):
                 grad2 += (ddxi**2).view(x.shape[0],-1).sum(-1) # also accumulate square gradient
         return div, grad2
         
-    # approximate method
+    # approximate method [FFJORD arXiv:1810.01367]
     # div f = avg_e d(e.dx)/d(e.x) averge over Gaussian random noise e
     def div_approx(self, dx, x, reg=False):
         assert self.e.shape == x.shape, 'noise shape e:{} and input shape x:{} not compatible.'.format(self.e.shape, x.shape)
@@ -210,7 +214,7 @@ class ODEFunc(torch.nn.Module):
 
 class ODEBijector(torch.nn.Module):
     ''' ODEBijector realizes a bijective map by solving the ODE dx/dt = f(t,x).
-        
+
         Parameters:
             f :: DynamicModule - dynamic module that models f(t,x)
     '''
