@@ -18,19 +18,19 @@ This is a Pytorch implementation of the arXiv paper [arXiv:2203.07975](https://a
 * **Generative Model**. RG-Flow models the probability distribution $p_X(\mathbf{x})$ of data $\mathbf{x}$ as the pullback of a base distribution $p_Z(\mathbf{z})$ through the bijective transformation $R:\mathbf{x}\mapsto\mathbf{z}$, such that $$p_X(\mathbf{x})=p_Z(\mathbf{z})\det\left(\frac{\partial\mathbf{z}}{\partial\mathbf{x}}\right).$$
 * **RG Flow**. The bijective transformation $R:\mathbf{x}\mapsto\mathbf{z}$ is implemented as hierarchical bijective maps that progressively extract irrelevant features from relevant features following the idea of renormalization group transformation. The mapping is also considered a holographic encoding map from the visible data $\mathbf{x}$ (in a $d$-dimensional base space, i.e. holographic boundary) to the latent features $\mathbf{z}$ (in the $(d+1)$-dimensional hyperbolic space, i.e. holographic bulk).
   <p align="center">
-    <img src="docs/imgs/RGflow.png" width=400>
+    <img src="docs/imgs/RGflow.png" width=420>
   </p>
   $$\mathbf{x}^{(0)}=\mathbf{x},$$
   $$\mathbf{x}^{(l)},\mathbf{z}^{(l)}=R_l(\mathbf{x}^{(l-1)})\quad(\text{for }l=1,2,\cdots,n),$$
   $$\mathbf{z}=\mathrm{concat}[\mathbf{z}^{(1)},\mathbf{z}^{(2)},\cdots,\mathbf{z}^{(n)}].$$
-* **RG Layer**. Each layer of the bijective map $R_l:\mathbf{x}^{(l-1)}\mapsto\mathbf{x}^{(l)},\mathbf{z}^{(l)}$ is realized as a ordinary differential equation (ODE) evolution of the input $\mathbf{x}^{(l-1)}$ followed by a splitting of relevant and irrelevant features.
+* **RG Layer**. Each layer of the bijective map $R_l:\mathbf{x}^{(l-1)}\mapsto\mathbf{x}^{(l)},\mathbf{z}^{(l)}$ is realized as a ordinary differential equation (ODE) evolution of the input followed by a splitting of relevant and irrelevant features.
   <p align="center">
-    <img src="docs/imgs/RGlayer.png" width=320>
+    <img src="docs/imgs/RGlayer.png" width=340>
   </p>
   The ODE is specified by a velocity function $\mathbf{v}(\mathbf{x},t)$
   $$\frac{\mathrm{d}\mathbf{x}(t)}{\mathrm{d}t}=\mathbf{v}(\mathbf{x}(t),t).$$
   The ODE evolution starts with the initial condition $\mathbf{x}(t=0)=\mathbf{x}^{(l-1)}$ and evolves from $t=0$ to $t=1$. The final configuration $\mathbf{x}(t=1)$ is then split to relevant features $\mathbf{x}^{(l)}$ and irrelevant features $\mathbf{z}^{(l)}$ following a fixed pattern.
 * **ODE Function**. The ODE function $\mathbf{v}(\mathbf{x},t)$ is implemented by a convolutional neural network (CNN) with time-dependent weights and a unit-cell translation symmetry.
   <p align="center">
-    <img src="docs/imgs/ODEfunc.png" width=220>
+    <img src="docs/imgs/ODEfunc.png" width=240>
   </p>
