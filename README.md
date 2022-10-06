@@ -16,7 +16,7 @@ This is a Pytorch implementation of the arXiv paper [arXiv:2203.07975](https://a
 ## Architecture Overview
 
 * **Generative Model**. RG-Flow models the probability distribution $p_X(\mathbf{x})$ of data $\mathbf{x}$ as the pullback of a base distribution $p_Z(\mathbf{z})$ through the bijective transformation $R:\mathbf{x}\mapsto\mathbf{z}$, such that $$p_X(\mathbf{x})=p_Z(\mathbf{z})\det\left(\frac{\partial\mathbf{z}}{\partial\mathbf{x}}\right).$$
-* **RG Flow**. The bijective transformation $R:\mathbf{x}\mapsto\mathbf{z}$ is implemented as hierarchical bijective maps that progressively extract irrelevant features from relevant features following the idea of renormalization group transformation. The mapping is also considered a holographic encoding map from the visible data $\mathbf{x}$ to the latent features $\mathbf{z}$.
+* **RG Flow**. The bijective transformation $R:\mathbf{x}\mapsto\mathbf{z}$ is implemented as hierarchical bijective maps that progressively extract irrelevant features from relevant features following the idea of renormalization group transformation. The mapping is also considered a holographic encoding map from the visible data $\mathbf{x}$ (in a $d$-dimensional base space, i.e. holographic boundary) to the latent features $\mathbf{z}$ (in the $(d+1)$-dimensional hyperbolic space, i.e. holographic bulk).
   <p align="center">
     <img src="docs/imgs/RGflow.png" width=400>
   </p>
