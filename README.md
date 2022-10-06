@@ -1,6 +1,6 @@
 # RG-Flow (ODE implementation)
  
-This is a Pytorch implementation of the arXiv paper [arXiv:2203.07975](https://arxiv.org/abs/2203.07975): Artan Sheshmani, Yizhuang You, Wenbo Fu, and Ahmadreza Azizi, Categorical Representation Learning and RG flow operators for algorithmic classifiers.
+This is a Pytorch implementation of the arXiv paper [arXiv:2203.07975](https://arxiv.org/abs/2203.07975): Categorical Representation Learning and RG flow operators for algorithmic classifiers by Artan Sheshmani, Yizhuang You, Wenbo Fu, and Ahmadreza Azizi.
  
  **RG-Flow** is a hierarchical flow-based generative model built on the idea of renormalization group (RG) in physics. It was originally introduced in Ref. [1] under the name of "NeuralRG" as a flow-based generative model on a multi-scale entanglement renormalization ansatz (MERA) network structure in physics. Ref. [2] lays down the theoretical foundation between the hierarchical flow-based generative model and the modern understanding of renormalization group flow as an optimal transport that disentangles a quantum field theory. The architecture is simplified as the model develops. The technology is further applied to image generation [3] and sequence generation [4]. This repository hosts an implementation of RG-Flow based on neural ODE bijectors. It can learn to generate new samples and estimate sample log-likelihood given (i) either a set of training samples (ii) or an energy function that describes the sample distribution (as a Boltzmann distribution).
 
