@@ -12,3 +12,25 @@ This is a Pytorch implementation of the arXiv paper [arXiv:2203.07975](https://a
 [3] [arXiv:2010.00029](https://arxiv.org/abs/2010.00029): Hong-Ye Hu, Dian Wu, Yi-Zhuang You, Bruno Olshausen, Yubei Chen. *RG-Flow: A hierarchical and explainable flow model based on renormalization group and sparse prior*. (Associtated GitHub repository: [RG-Flow (MERA implementation)](https://github.com/hongyehu/RG-Flow))
 
 [4] [arXiv:2203.07975](https://arxiv.org/abs/2203.07975): Artan Sheshmani, Yizhuang You, Wenbo Fu, and Ahmadreza Azizi. *Categorical Representation Learning and RG flow operators for algorithmic classifiers*. 
+
+## Architecture Overview
+
+* **Generative Model**. RG-Flow models the probabilty distribution $p_X(\mathbf{x})$ of data $\mathbf{x}$ as the pull back of a base distribution $p_Z(\mathbf{z})$ through the bijective transformation $R:\mathbf{x}\mapsto\mathbf{z}$, such that $$p_X(\mathbf{x})=p_Z(\mathbf{z})\det\left(\frac{\partial\mathbf{z}}{\partial\mathbf{x}}\right).$$
+* **RG Flow**. The bijective transformation $R:\mathbf{x}\mapsto\mathbf{z}$ is implemented as a hierarchical bijective maps that progressively extract irrelevant features from relevant features following the idea of renormalization group transformation. The mapping is also considered as a holographic encoding map from the visible data $\mathbf{x}$ to the latent features $\mathbf{z}$.
+  <p align="center">
+    <img src="docs/imgs/RGflow.png" width=400>
+  </p>
+  $$\mathbf{x}^{(0)}=\mathbf{x},$$
+  $$\mathbf{x}^{(l)},\mathbf{z}^{(l)}=R_l(\mathbf{x}^{(l-1)})\quad(\text{for }l=1,2,\cdots,n),$$
+  $$\mathbf{z}=\mathrm{concat}[\mathbf{z}^{(1)},\mathbf{z}^{(2)},\cdots,\mathbf{z}^{(n)}].$$
+* **RG Layer**. Each layer of the bijective map $R_l:\mathbf{x}^{(l-1)}\mapsto\mathbf{x}^{(l)},\mathbf{z}^{(l)}$ is realized as a ordinary differential equation (ODE) evolution of the input $\mathbf{x}^{(l-1)}$ followed by a splitting of relevant and irrelevant features.
+  <p align="center">
+    <img src="docs/imgs/RGlayer.png" width=320>
+  </p>
+  The ODE is specified by a velocity function $\mathbf{v}(\mathbf{x},t)$
+  $$\frac{\mathrm{d}\mathbf{x}(t)}{\mathrm{d}t}=\mathbf{v}(\mathbf{x}(t),t).$$
+  The ODE evolution starts with the initial condition $\mathbf{x}(t=0)=\mathbf{x}^{(l-1)}$ and evolves from $t=0$ to $t=1$. The final configuration $\mathbf{x}(t=1)$ is then split to relevant features $\mathbf{x}^{(l)}$ and irrelevant features $\mathbf{z}^{(l)}$ following a fixed pattern.
+* **ODE Function**. The ODE function $\mathbf{v}(\mathbf{x},t)$ is implemented by a convolutional neural network (CNN) with time-dependent weights and a unit-cell translation symmetry.
+  <p align="center">
+    <img src="docs/imgs/ODEfunc.png" width=220>
+  </p>
