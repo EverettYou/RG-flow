@@ -247,7 +247,7 @@ class RGModel(torch.nn.Module):
         x, *_ = self.rgflow.decode(z)
         return x
     
-    def nll_loss(self, x, lk=0.01, lg=0.01, mode='jf_reg', **kwargs):
+    def nll_loss(self, x, lk=0.01, lg=0.01, mode=None, **kwargs):
         ''' compute negative log likelihood loss given training samples
             Input:
                 x :: torch.Tensor (N, dim, *shape) - training samples
@@ -259,11 +259,11 @@ class RGModel(torch.nn.Module):
                 Ek :: torch.Tensor (scalar) - kinetic energy
                 Eg :: torch.Tensor (scalar) - gradient energy
         '''
-        vals = self.log_prob(x, mode=mode, **kwargs)
+        vals = self.log_prob(x, mode='jf_reg', **kwargs)
         logpx, Ek, Eg = [val.mean() for val in vals]
         return -logpx + lk * Ek + lg * Eg, -logpx, Ek, Eg
 
-    def free_loss(self, energy, samples, lk=0.01, lg=0.01, mode='jf_reg', **kwargs):
+    def free_loss(self, energy, samples, lk=0.01, lg=0.01, mode=None, **kwargs):
         ''' compute free energy loss given energy function
             Input:
                 energy :: func or nn.Module - energy function E(x)
@@ -276,7 +276,7 @@ class RGModel(torch.nn.Module):
                 Eg :: torch.Tensor (scalar) - gradient energy
         '''
         z = self.base_dist.rsample([samples])
-        x, logJ, *rest = self.rgflow.decode(z, mode=mode, **kwargs)
+        x, logJ, *rest = self.rgflow.decode(z, mode='jf_reg', **kwargs)
         F = (energy(x) - logJ).mean()
         Ek, Eg = [val.mean() for val in rest]
         return F + lk * Ek + lg * Eg, F, Ek, Eg
