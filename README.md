@@ -11,7 +11,7 @@ This is a Pytorch implementation of the arXiv paper [arXiv:2203.07975](https://a
 
 [3] [arXiv:2010.00029](https://arxiv.org/abs/2010.00029): Hong-Ye Hu, Dian Wu, Yi-Zhuang You, Bruno Olshausen, Yubei Chen. *RG-Flow: A hierarchical and explainable flow model based on renormalization group and sparse prior*. (Associated GitHub repository: [RG-Flow (MERA implementation)](https://github.com/hongyehu/RG-Flow))
 
-[4] [arXiv:2203.07975](https://arxiv.org/abs/2203.07975): Artan Sheshmani, Yizhuang You, Wenbo Fu, and Ahmadreza Azizi. *Categorical Representation Learning and RG flow operators for algorithmic classifiers*. 
+[4] [arXiv:2203.07975](https://arxiv.org/abs/2203.07975): Artan Sheshmani, Yizhuang You, Wenbo Fu, and Ahmadreza Azizi. *Categorical Representation Learning and RG flow operators for algorithmic classifiers*. (**This GitHub repository**)
 
 ## Architecture Overview
 
