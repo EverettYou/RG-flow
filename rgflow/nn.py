@@ -128,19 +128,20 @@ class Dynamic(torch.nn.Module):
             base_module :: torch.nn.Module - static base module
             hyper_dim :: int - latent space dimension of hyper net
     '''
-    def __init__(self, base_module, hyper_dim=None, **kwargs):
+    def __init__(self, base_module, device, hyper_dim=None, **kwargs):
         super().__init__()
         self.hyper_dim = hyper_dim
         if hyper_dim is None:
-            self.base_module = base_module
+            self.base_module = base_module.to(device)
         else:
+
             self.func_module, self.params = make_functional(base_module)
             # comput number of elements in the base layer
             numel = sum(param.numel() for param in self.params)
             # construct hyper network (input: time (scalar), output: parameter vector)
             self.hyper_net = torch.nn.Sequential(torch.nn.Linear(1, hyper_dim), 
                                                  torch.nn.Tanh(),
-                                                 torch.nn.Linear(hyper_dim, numel))
+                                                 torch.nn.Linear(hyper_dim, numel)).to(device)
     
     def forward(self, t, x):
         ''' DynamicModule forward f(t, x)

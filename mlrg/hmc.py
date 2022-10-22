@@ -66,8 +66,8 @@ class HMCSampler():
         K = p.square().sum(-1) / 2
         return K + V
         
-    def step(self, x0, **kwargs):
-        p0 = torch.randn_like(x0)
+    def step(self, x0, device, **kwargs):
+        p0 = torch.randn_like(x0).to(device)
         H0 = self.hamiltonian(x0, p0)
         x, p = self.leap_frog(x0, p0, **kwargs)
         H = self.hamiltonian(x, p)
@@ -86,7 +86,7 @@ class HMCSampler():
                 new_step_size = self.step_size * self.shrink_factor
             self.step_size = max(min(new_step_size, self.max_step_size), self.min_step_size)
             
-    def sample(self, x=None, iters=None, samples=None, requires_grad=False, **kwargs):
+    def sample(self, device, x=None, iters=None, samples=None, requires_grad=False, **kwargs):
         ''' generate samples
             Input:
                 x :: torch.Tensor - initial samples (optional)
@@ -103,7 +103,8 @@ class HMCSampler():
         x.requires_grad_(requires_grad)
         if samples is not None and samples != x.shape[0]:
             x = x.repeat((ceil(samples/x.shape[0]),)+(1,)*(x.dim()-1))[:samples]
+        x = x.to(device)
         for _ in range(iters):
-            x = self.step(x, **kwargs)
+            x = self.step(x, device, **kwargs)
         self.x = x.detach()
         return x
