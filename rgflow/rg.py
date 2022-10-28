@@ -85,10 +85,10 @@ class RGLayer(torch.nn.Module):
             activation :: str - activation function name
             hyper_dim :: int - latent space dimension of hyper net
     '''
-    def __init__(self, in_shape, dim, **kwargs):
+    def __init__(self, in_shape, device, dim, **kwargs):
         super().__init__()
         self.partitioner = RGPartition(in_shape, **kwargs)
-        self.bijector = ODEBijector(Dynamic(MarkedCNN(self.partitioner.mask, dim, **kwargs), **kwargs))
+        self.bijector = ODEBijector(Dynamic(MarkedCNN(self.partitioner.mask.to(device), dim, **kwargs).to(device), device, **kwargs))
             
     def encode(self, x, **kwargs):
         ''' single-layer encoding (renormalization) map x, z = R(x)
