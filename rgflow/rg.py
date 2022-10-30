@@ -88,6 +88,10 @@ class RGLayer(torch.nn.Module):
     def __init__(self, in_shape, dim, **kwargs):
         super().__init__()
         self.partitioner = RGPartition(in_shape, **kwargs)
+        self.in_shape = self.partitioner.in_shape
+        self.out_shape = self.partitioner.out_shape
+        self.res_shape = self.partitioner.res_shape
+        self.dim = dim
         self.bijector = ODEBijector(Dynamic(MarkedCNN(self.partitioner.mask, dim, **kwargs), **kwargs))
             
     def encode(self, x, **kwargs):
@@ -152,7 +156,7 @@ class RGFlow(torch.nn.Module):
         while prod(shape) > 0:
             layer = RGLayer(shape, dim, **kwargs)
             self.layers.append(layer)
-            shape = layer.partitioner.out_shape
+            shape = layer.out_shape
     
     def encode(self, x, **kwargs):
         ''' encoding (renormalization) map z = R(x)
@@ -198,7 +202,7 @@ class RGFlow(torch.nn.Module):
         x = z[:, :, []]
         pz = z.shape[-1]
         for layer in reversed(self.layers):
-            nz = prod(layer.partitioner.res_shape)
+            nz = prod(layer.res_shape)
             x, *rest = layer.decode(x, z[:, :, pz-nz:pz], **kwargs)
             pz -= nz
             if rest_acc is None:
@@ -206,85 +210,4 @@ class RGFlow(torch.nn.Module):
             else:
                 rest_acc = tuple(R+r for R, r in zip(rest_acc, rest))
         return x, *rest_acc
-
-class RGModel(torch.nn.Module):
-    ''' RG flow-based generative model
-        
-        Parameters:
-            shape :: torch.Size - data shape
-            dim :: int - feature dimensions
-            --- optional ---
-            base_dist :: str - base distribution 'Normal' or 'Laplace'
-    '''
-    def __init__(self, shape, dim, base_dist='Normal', **kwargs):
-        super().__init__()
-        self.rgflow = RGFlow(shape, dim, **kwargs)
-        base_dist = getattr(torch.distributions, base_dist)(0., 1.)
-        self.base_dist = base_dist.expand((dim,)+self.rgflow.out_shape)
-    
-    def extra_repr(self):
-        return f'(base_dist): {self.base_dist}'
-    
-    def log_prob(self, x, mode='jf', **kwargs):
-        z, logJ, *rest = self.rgflow.encode(x, mode=mode, **kwargs)
-        logpz = self.base_dist.log_prob(z).view(z.shape[:1]+(-1,)).sum(-1)
-        return logpz + logJ, *rest
-    
-    def sample(self, samples):
-        ''' sample from the generative model
-            Input:
-                samples :: int - number of samples to generate
-            Output
-                x :: torch.Tensor (N, dim, *shape) - generated samples
-        '''
-        with torch.no_grad():
-            return self.rsample([samples])
-
-    def rsample(self, samples):
-        ''' reparametrized sampling, enables gradient back propagation. 
-            (see .sample) '''
-        z = self.base_dist.rsample([samples])
-        x, *_ = self.rgflow.decode(z)
-        return x
-    
-    def nll_loss(self, x, lk=0.01, lg=0.01, mode='jf_reg', **kwargs):
-        ''' compute negative log likelihood loss given training samples
-            Input:
-                x :: torch.Tensor (N, dim, *shape) - training samples
-                lk :: real - kinetic energy regularization strength
-                lg :: real - gradient energy regularization strength
-            Output:
-                loss :: torch.Tensor (scalar) - regularized loss
-                -logpx :: torch.Tensor (scalar) - negative log likelihood
-                Ek :: torch.Tensor (scalar) - kinetic energy
-                Eg :: torch.Tensor (scalar) - gradient energy
-        '''
-        vals = self.log_prob(x, mode=mode, **kwargs)
-        logpx, Ek, Eg = [val.mean() for val in vals]
-        return -logpx + lk * Ek + lg * Eg, -logpx, Ek, Eg
-
-    def free_loss(self, energy, samples, lk=0.01, lg=0.01, mode='jf_reg', **kwargs):
-        ''' compute free energy loss given energy function
-            Input:
-                energy :: func or nn.Module - energy function E(x)
-                lk :: real - kinetic energy regularization strength
-                lg :: real - gradient energy regularization strength
-            Output:
-                loss :: torch.Tensor (scalar) - regularized loss
-                F :: torch.Tensor (scalar) - free energy
-                Ek :: torch.Tensor (scalar) - kinetic energy
-                Eg :: torch.Tensor (scalar) - gradient energy
-        '''
-        z = self.base_dist.rsample([samples])
-        x, logJ, *rest = self.rgflow.decode(z, mode=mode, **kwargs)
-        F = (energy(x) - logJ).mean()
-        Ek, Eg = [val.mean() for val in rest]
-        return F + lk * Ek + lg * Eg, F, Ek, Eg
-
-
-
-
-
-
-    
 
