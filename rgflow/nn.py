@@ -73,7 +73,7 @@ class MarkedCNN(torch.nn.Module):
         bias :: bool - If True, adds a learnable bias to the output
         activation :: str - activation function name
     '''
-    def __init__(self, mask, dim, hdims=[], ksize=3, bdy_cond='circular', bias=True, activation='Tanh', **kwargs):
+    def __init__(self, mask, dim, hdims=[], ksize=3, bdy_cond='circular', bias=True, activation='Linear', **kwargs):
         assert ksize is None or ksize%2==1, 'ksize={} must be an odd integer'.format(ksize)
         super().__init__()
         self.mask = mask
@@ -139,7 +139,7 @@ class Dynamic(torch.nn.Module):
             # comput number of elements in the base layer
             numel = sum(param.numel() for param in self.params)
             # construct hyper network (input: time (scalar), output: parameter vector)
-            self.hyper_net = torch.nn.Sequential(torch.nn.Linear(1, hyper_dim), 
+            self.hyper_net = torch.nn.Sequential(torch.nn.Linear(1, hyper_dim),
                                                  torch.nn.Tanh(),
                                                  torch.nn.Linear(hyper_dim, numel)).to(device)
     
