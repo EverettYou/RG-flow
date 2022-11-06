@@ -15,23 +15,33 @@ class ShapedNormal(torch.distributions.Distribution):
     support = constraints.real
     has_rsample = True
     
-    def  __init__(self, event_shape, loc=0., scale=1., device='cpu'):
+    def  __init__(self, event_shape, loc=0., scale=1.):
         super(type(self), self).__init__(event_shape=torch.Size(event_shape))
         self.event_dim = len(self.event_shape)
-        loc = self.cast(loc, device)
-        scale = self.cast(scale, device)
-        self.dist = torch.distributions.Normal(loc, scale)
+        self.loc = self.cast(loc)
+        self.scale = self.cast(scale)
         
     def __repr__(self):
         return self.__class__.__name__ + f'(event_shape: {tuple(self.event_shape)})'
 
-    def new(self, loc=0., scale=1., device='cpu'):
-        return type(self)(self.event_shape, loc, scale, device)
+    @property
+    def dist(self):
+        return torch.distributions.Normal(self.loc, self.scale)
+    
+    def new(self, loc=0., scale=1.):
+        ''' returns a new instance with updated loc and scale,
+            but the same event_shape '''
+        return type(self)(self.event_shape, loc, scale)
+
+    def to(self, *args, **kwargs):
+        self.loc = self.loc.to(*args, **kwargs)
+        self.scale = self.scale.to(*args, **kwargs)
+        return self
         
-    def cast(self, val, device='cpu'):
+    def cast(self, val):
         ''' cast val to (..., *event_shape) '''
         if isinstance(val, Number):
-            return self.cast(torch.tensor(val, device=device))
+            return self.cast(torch.tensor(val))
         else:
             if val.dim() == 0:
                 return val.expand(self.event_shape)
@@ -44,8 +54,8 @@ class ShapedNormal(torch.distributions.Distribution):
             else:
                 raise RuntimeError(f'Can not cast val of shape {tuple(val.shape)} to the event shape {tuple(self.event_shape)}.')
     
-    def rsample(self, sample_shape=torch.Size()):
-        return self.dist.rsample(sample_shape)
+    def rsample(self, samples):
+        return self.dist.rsample([samples])
         
     def log_prob(self, value):
         ''' log probability (summed within even_shape) '''
@@ -67,6 +77,11 @@ class RGGenerator(torch.nn.Module):
     
     def extra_repr(self):
         return f'(base_dist): {self.base_dist}'
+
+    def to(self, *args, **kwargs):
+        self.rgflow = self.rgflow.to(*args, **kwargs)
+        self.base_dist = self.base_dist.to(*args, **kwargs)
+        return self
     
     def log_prob(self, x, mode='jf', **kwargs):
         ''' log probability estimation 
@@ -91,7 +106,7 @@ class RGGenerator(torch.nn.Module):
     def rsample(self, samples):
         ''' reparametrized sampling, enables gradient back propagation. 
             (see .sample) '''
-        z = self.base_dist.rsample([samples])
+        z = self.base_dist.rsample(samples)
         x, *_ = self.rgflow.decode(z)
         return x
     
@@ -127,7 +142,9 @@ class RGGenerator(torch.nn.Module):
         '''
         z = self.base_dist.rsample([samples])
         x, logJ, *rest = self.rgflow.decode(z, mode=mode, **kwargs)
-        F = (energy(x) - logJ).mean()
+        logpz = self.base_dist.log_prob(z)
+        logpx = logpz - logJ
+        F = (energy(x) + logpx).mean()
         Ek, Eg = [val.mean() for val in rest]
         return F + lk * Ek + lg * Eg, F, Ek, Eg
 
