@@ -73,7 +73,8 @@ class RGGenerator(torch.nn.Module):
     def __init__(self, shape, dim, **kwargs):
         super().__init__()
         self.rgflow = RGFlow(shape, dim, **kwargs)
-        self.base_dist = ShapedNormal([dim, *self.rgflow.out_shape])
+        event_shape = [dim, *self.rgflow.out_shape]
+        self.base_dist = ShapedNormal(event_shape)
     
     def extra_repr(self):
         return f'(base_dist): {self.base_dist}'
@@ -109,6 +110,16 @@ class RGGenerator(torch.nn.Module):
         z = self.base_dist.rsample(samples)
         x, *_ = self.rgflow.decode(z)
         return x
+
+    def lhmc_sampler(self, energy, x0, **kwargs):
+        ''' construct a latent space HMC sampler 
+            Input:
+                energy :: func or nn.Module - energy function E(x)
+                x0 :: torch.Tensor - initial configruation of x
+            Output:
+                lhmc_sampler :: LatentHMCSampler - LHMC sampler
+                    providing sample method to perform HMC in latent space '''
+        return LatentHMCSampler(self.rgflow, energy, x0, **kwargs)
     
     def nll_loss(self, x, lk=0.01, lg=0.01, mode='jf_reg', **kwargs):
         ''' compute negative log likelihood loss given training samples
@@ -148,7 +159,4 @@ class RGGenerator(torch.nn.Module):
         Ek, Eg = [val.mean() for val in rest]
         return F + lk * Ek + lg * Eg, F, Ek, Eg
 
-
-
-    
 
