@@ -135,6 +135,11 @@ class Dynamic(torch.nn.Module):
             self.base_module = base_module
         else:
             self.func_module, self.params = make_functional(base_module)
+            # turn off gradient for all paramers on meta device
+            # otherwise, torchdiffeq can not infer the parameters correctly in adjoint integration
+            for p in self.func_module.parameters():
+                if p.device == torch.device('meta'):
+                    p.requires_grad = False
             # comput number of elements in the base layer
             numel = sum(param.numel() for param in self.params)
             # construct hyper network (input: time (scalar), output: parameter vector)
