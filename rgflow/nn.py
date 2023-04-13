@@ -161,4 +161,5 @@ class Dynamic(torch.nn.Module):
             for param in self.params:
                 end = start + param.numel()
                 params.append(param_vec[start:end].view_as(param))
+                start = end
             return self.func_module(params, x)
